@@ -16,7 +16,10 @@ dotenv.config();
 
 const app = express();
 
-const allowedOrigins = ["http://localhost:3000"];
+const allowedOrigins = [
+  "http://localhost:3000",
+  "https://e-commerce-frontend-murex-eta.vercel.app",
+];
 
 app.use(
   cors({
