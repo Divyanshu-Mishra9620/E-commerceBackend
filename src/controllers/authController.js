@@ -4,6 +4,8 @@ import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
 import crypto from "crypto";
 
+const FRONTEND_URI = process.env.FRONTEND_URI;
+
 export const registerUser = async (req, res) => {
   const { name, email, password, role } = req.body;
 
@@ -166,7 +168,7 @@ export const forgotPassword = async (req, res) => {
     await user.save();
     console.log(user);
 
-    const resetUrl = `${BACKEND_URI}/api/reset-password/${resetToken}`;
+    const resetUrl = `${FRONTEND_URI}/api/reset-password/${resetToken}`;
 
     const transporter = nodemailer.createTransport({
       service: "gmail",
