@@ -2,16 +2,17 @@ import Razorpay from "razorpay";
 import crypto from "crypto";
 import Order from "../models/Order.js";
 import Payment from "../models/Payment.js";
-import dotenv from "dotenv";
 import mongoose from "mongoose";
-dotenv.config();
+import dotenv from "dotenv";
+dotenv.config({ path: ".env.local" });
 
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_API_KEY,
   key_secret: process.env.RAZORPAY_API_SECRET,
 });
-console.log(process.env.RAZORPAY_API_KEY);
-console.log(process.env.RAZORPAY_API_SECRET);
+
+console.log("Razorpay Key ID:", process.env.RAZORPAY_API_KEY);
+console.log("Razorpay Key Secret:", process.env.RAZORPAY_API_SECRET);
 
 export const createRazorpayOrder = async (req, res) => {
   try {
