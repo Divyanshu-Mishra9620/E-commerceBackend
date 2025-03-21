@@ -151,26 +151,22 @@ export const forgotPassword = async (req, res) => {
   const { email } = req.body;
 
   try {
-    // Check if user exists
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // Generate a reset token
     const resetToken = crypto.randomBytes(20).toString("hex");
-    const resetTokenExpiry = Date.now() + 3600000; // 1 hour from now
+    const resetTokenExpiry = Date.now() + 3600000;
     console.log("resetToken", resetToken);
     console.log("resetTokenExpiry", resetTokenExpiry);
 
-    // Save the token and expiry to the user
     user.resetPasswordToken = resetToken;
     user.resetPasswordExpires = resetTokenExpiry;
     await user.save();
     console.log(user);
 
-    // Send email with reset link
-    const resetUrl = `http://localhost:3000/api/reset-password/${resetToken}`;
+    const resetUrl = `${BACKEND_URI}/api/reset-password/${resetToken}`;
 
     const transporter = nodemailer.createTransport({
       service: "gmail",
