@@ -47,29 +47,25 @@ export const googleSignIn = async (req, res) => {
   const { name, email, profilePic } = req.body;
 
   try {
-    // Check if user already exists
     let user = await User.findOne({ email });
     console.log(user);
 
     if (!user) {
-      // Create a new user if they don't exist
       user = new User({
         name,
         email,
         profilePic,
-        provider: "google", // Optional: Track the sign-in provider
+        provider: "google",
       });
       await user.save();
     }
 
-    // Generate a token
     const token = jwt.sign(
       { id: user._id, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
 
-    // Return user data and token
     res.status(200).json({
       message: "Google Sign-In successful",
       token,
