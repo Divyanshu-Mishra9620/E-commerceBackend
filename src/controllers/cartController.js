@@ -28,8 +28,9 @@ export const getAllCartProduct = async (req, res) => {
 
 export const addCartProduct = async (req, res) => {
   try {
-    const { product: productId, quantity } = req.body;
+    const { productId, quantity } = req.body;
     const { userId } = req.params;
+    console.log(userId, productId);
 
     if (
       !mongoose.Types.ObjectId.isValid(userId) ||

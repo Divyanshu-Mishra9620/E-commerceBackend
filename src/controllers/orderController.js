@@ -50,7 +50,7 @@ export const createOrder = async (req, res) => {
         });
       }
 
-      totalPrice += +product.discounted_price * +item.quantity;
+      totalPrice += (+product.discounted_price || 799) * +item.quantity;
       productDetails.push({ product: item.product, quantity: item.quantity });
 
       product.stock -= item.quantity;

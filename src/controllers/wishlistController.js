@@ -53,7 +53,8 @@ export const addWishlistProduct = async (req, res) => {
 export const removeWishlistProduct = async (req, res) => {
   try {
     const { userId } = req.params;
-    const { productId } = req.body;
+    const { product } = req.body;
+    console.log(product);
 
     const wishlist = await Wishlist.findOne({ user: userId });
 
@@ -61,7 +62,7 @@ export const removeWishlistProduct = async (req, res) => {
       return res.status(404).json({ message: "Wishlist not found" });
 
     wishlist.items = wishlist.items.filter(
-      (item) => item.product.toString() !== productId
+      (item) => item.product.toString() !== product
     );
 
     if (wishlist.items.length === 0) {
