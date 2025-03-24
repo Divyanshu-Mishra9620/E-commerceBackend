@@ -3,7 +3,10 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
 import crypto from "crypto";
-
+import dotenv from "dotenv";
+const envFile =
+  process.env.NODE_ENV === "production" ? ".env.production" : ".env.local";
+dotenv.config({ path: envFile });
 const FRONTEND_URI = process.env.FRONTEND_URI;
 
 export const registerUser = async (req, res) => {
@@ -168,7 +171,8 @@ export const forgotPassword = async (req, res) => {
     await user.save();
     console.log(user);
 
-    const resetUrl = `${FRONTEND_URI}/api/reset-password/${resetToken}`;
+    console.log(FRONTEND_URI);
+    const resetUrl = `${FRONTEND_URI}/reset-password/${resetToken}`;
 
     const transporter = nodemailer.createTransport({
       service: "gmail",
