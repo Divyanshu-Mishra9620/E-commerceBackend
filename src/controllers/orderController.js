@@ -21,6 +21,16 @@ export const getAllOrdersByUser = async (req, res) => {
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
+export const getAllOrders = async (req, res) => {
+  try {
+    const orders = await Order.find();
+
+    return res.status(200).json({ orders: orders || [] });
+  } catch (error) {
+    console.error("Error fetching orders:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
 
 export const createOrder = async (req, res) => {
   try {
@@ -31,7 +41,6 @@ export const createOrder = async (req, res) => {
 
     const { userId } = req.params;
     const { products, shippingAddress, paymentMethod } = req.body;
-    console.log(products, shippingAddress, paymentMethod);
 
     let totalPrice = 0;
     let productDetails = [];

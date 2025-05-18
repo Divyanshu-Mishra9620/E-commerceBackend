@@ -11,17 +11,10 @@ const razorpay = new Razorpay({
   key_secret: process.env.RAZORPAY_API_SECRET,
 });
 
-console.log("Razorpay Key ID:", process.env.RAZORPAY_API_KEY);
-console.log("Razorpay Key Secret:", process.env.RAZORPAY_API_SECRET);
-
 export const createRazorpayOrder = async (req, res) => {
   try {
     const { orderId, amount } = req.body;
     const user = req.user;
-
-    console.log("User Id", user._id);
-    console.log("Order ID:", orderId);
-    console.log("Amount:", amount);
 
     if (!mongoose.Types.ObjectId.isValid(orderId)) {
       console.error("Invalid Order ID:", orderId);
@@ -44,10 +37,8 @@ export const createRazorpayOrder = async (req, res) => {
       _id: orderObjectId,
       user: userObjectId,
     };
-    console.log("Query:", query);
 
     const order = await Order.findOne(query);
-    console.log("Order:", order);
 
     if (!order) {
       return res

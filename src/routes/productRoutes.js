@@ -10,6 +10,7 @@ import {
   getProductReviews,
   deleteReview,
   editReview,
+  editProduct,
 } from "../controllers/productController.js";
 
 const router = express.Router();
@@ -18,6 +19,7 @@ router.get("/", getAllProducts);
 router.get("/search", getProductByTitle);
 router.get("/:id", getProductById);
 router.post("/", createProduct);
+router.put("/:id", editProduct);
 router.delete("/:id", deleteProduct);
 router.get("/upload-images", uploadProductImagesToCloudinary);
 

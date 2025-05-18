@@ -9,7 +9,6 @@ export const getAllProducts = async (req, res) => {
     if (!products.length) {
       return res.status(404).json({ message: "No products found" });
     }
-    console.log(products.length);
 
     return res.status(200).json(products);
   } catch (error) {
@@ -60,54 +59,57 @@ export const getProductById = async (req, res) => {
 
 export const createProduct = async (req, res) => {
   try {
-    const { name, description, price, category, stock, tag, image, reviews } =
-      req.body;
-    let product = await Product.findOne({
-      $or: [
-        { name: { $regex: new RegExp(name, "i") } },
-        { category: { $regex: new RegExp(category, "i") } },
-        { tag: { $regex: new RegExp(tag, "i") } },
-      ],
-    });
-    if (product) {
-      product.stock += stock;
-      await product.save();
-      return res
-        .status(201)
-        .json({ message: "Product created successfully", product });
-    } else {
-      product = new Product({
-        name,
-        description,
-        price,
-        category,
-        stock,
-        image,
-        tag,
-        reviews,
-      });
-      await product.save();
-      return res
-        .status(201)
-        .json({ message: "Product created successfully", product });
+    const { newProduct } = req.body;
+    console.log(newProduct);
+
+    if (!newProduct.product_name) {
+      return res.status(400).json({ message: "Product name is required" });
     }
+
+    const product = new Product({
+      ...newProduct,
+      image_url: newProduct.image_url || "lamp.jpg",
+    });
+
+    await product.save();
+    res.status(201).json({ product });
   } catch (error) {
-    console.error("Error craeting product:", error);
+    console.error("Error creating product:", error);
+    res.status(500).json({ message: error.message || "Server error" });
+  }
+};
+export const editProduct = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updatedPdt = await Product.findByIdAndUpdate(id, req.body.editModal, {
+      new: true,
+    });
+    if (!updatedPdt) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    res.status(200).json({
+      message: "Product updated successfully",
+      product: updatedPdt,
+    });
+  } catch (error) {
+    console.error("Error updating product:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
 
 export const deleteProduct = async (req, res) => {
   try {
-    const { productId } = req.params;
+    const { id } = req.params;
+    console.log(id);
 
-    let product = await Product.findById(productId);
+    let product = await Product.findById(id);
 
     if (!product) {
       return res.status(404).json({ message: "Product not found" });
     }
 
-    await Product.findByIdAndDelete(productId);
+    await Product.findByIdAndDelete(id);
 
     return res.status(200).json({ message: "Product deleted successfully" });
   } catch (error) {
@@ -170,7 +172,6 @@ export const addReview = async (req, res) => {
     const userObjectId = new mongoose.Types.ObjectId(user._id);
 
     const product = await Product.findById(prodObjectId);
-    console.log(product);
 
     if (!product) {
       return res.status(404).json({ message: "Product not found" });
@@ -219,21 +220,16 @@ export const getProductReviews = async (req, res) => {
 export const editReview = async (req, res) => {
   const { productId, editingReviewId } = req.params;
   const { rating, comment } = req.body;
-
-  console.log("Review ID to edit:", editingReviewId);
-  console.log("Product ID:", productId);
   const prodObjId = new mongoose.Types.ObjectId(productId);
   try {
     const product = await Product.findById(prodObjId);
     if (!product) {
       return res.status(404).json({ message: "Product not found" });
     }
-    console.log(product);
 
     const reviewToEdit = product.reviews.find(
       (rev) => rev.user.toString() === editingReviewId.toString()
     );
-    console.log(reviewToEdit);
 
     if (!reviewToEdit) {
       return res.status(404).json({ message: "Review not found" });
@@ -252,8 +248,6 @@ export const editReview = async (req, res) => {
 };
 export const deleteReview = async (req, res) => {
   const { productId, reviewId } = req.params;
-  console.log("rid", reviewId);
-  console.log("pid", productId);
 
   try {
     let product = await Product.findById(productId);

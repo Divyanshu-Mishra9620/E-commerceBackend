@@ -53,7 +53,6 @@ export const googleSignIn = async (req, res) => {
 
   try {
     let user = await User.findOne({ email });
-    console.log(user);
 
     if (!user) {
       user = new User({
@@ -90,41 +89,41 @@ export const googleSignIn = async (req, res) => {
 
 export const loginUser = async (req, res) => {
   const { email, password } = req.body;
-  console.log("Request Body:", req.body);
-  console.log("Email:", email);
-  console.log("Password:", password);
 
   if (!email || !password) {
-    console.log("Missing email or password");
     return res.status(400).json({ message: "Email and password are required" });
   }
 
   try {
     const user = await User.findOne({ email }).select("+password");
     if (!user) {
-      console.log("User not found");
       return res
         .status(400)
         .json({ message: "User not found, register instead" });
     }
-    console.log("User:", user);
-
-    console.log("Provided Password:", password);
-    console.log("Stored Hash:", user.password);
 
     const isPasswordCorrect = await bcrypt.compare(password, user.password);
-    console.log("Password Match:", isPasswordCorrect);
+
+    console.log(isPasswordCorrect);
 
     if (!isPasswordCorrect) {
-      console.log("Incorrect password");
       return res.status(400).json({ message: "Invalid credentials" });
     }
+
+    console.log("JWT_SECRET:", process.env.JWT_SECRET);
 
     const token = jwt.sign(
       { id: user._id, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
+
+    const cookie = serialize("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: 60 * 60,
+    });
 
     res.status(200).json({
       message: "Login successful",
@@ -135,6 +134,8 @@ export const loginUser = async (req, res) => {
         email: user.email,
         profilePic: user.profilePic || "",
         role: user.role,
+        status: 200,
+        headers: { "Set-Cookie": cookie },
       },
     });
   } catch (error) {
@@ -163,15 +164,10 @@ export const forgotPassword = async (req, res) => {
 
     const resetToken = crypto.randomBytes(20).toString("hex");
     const resetTokenExpiry = Date.now() + 3600000;
-    console.log("resetToken", resetToken);
-    console.log("resetTokenExpiry", resetTokenExpiry);
 
     user.resetPasswordToken = resetToken;
     user.resetPasswordExpires = resetTokenExpiry;
     await user.save();
-    console.log(user);
-
-    console.log(FRONTEND_URI);
     const resetUrl = `${FRONTEND_URI}/reset-password/${resetToken}`;
 
     const transporter = nodemailer.createTransport({
@@ -194,7 +190,6 @@ export const forgotPassword = async (req, res) => {
              ${resetUrl}\n\n
              If you did not request this, please ignore this email and your password will remain unchanged.\n`,
     };
-    console.log(mailOptions);
 
     await transporter.sendMail(mailOptions);
 
@@ -208,7 +203,6 @@ export const forgotPassword = async (req, res) => {
 export const resetPassword = async (req, res) => {
   const { token } = req.params;
   const { password } = req.body;
-  console.log("New Password:", password);
 
   try {
     const user = await User.findOne({

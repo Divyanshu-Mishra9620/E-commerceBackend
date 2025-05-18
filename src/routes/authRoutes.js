@@ -21,27 +21,17 @@ router.post("/forgot-password", forgotPassword);
 router.post("/reset-password/:token", resetPassword);
 router.post("/check-user", async (req, res) => {
   const { email, password } = req.body;
-
-  console.log("Received request with email:", email); // Log the email
-
   try {
-    const user = await User.findOne({ email }).select("+password"); // Explicitly select password
+    const user = await User.findOne({ email }).select("+password");
 
     if (!user) {
-      console.log("User not found for email:", email); // Log if user is not found
       return res.status(400).json({ message: "User not found" });
     }
-
-    console.log("User found:", user); // Log the user object
-
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (!isPasswordValid) {
-      console.log("Invalid password for user:", user.email);
       return res.status(400).json({ message: "Invalid credentials" });
     }
-
-    console.log("Password is valid for user:", user.email); // Log if password is valid
 
     res.status(200).json({
       user: {

@@ -5,7 +5,6 @@ import Product from "../models/Product.js";
 export const getAllCartProduct = async (req, res) => {
   try {
     const { userId } = req.params;
-    console.log(userId, "cartUID");
 
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       return res.status(400).json({ message: "Invalid user ID" });
@@ -30,7 +29,6 @@ export const addCartProduct = async (req, res) => {
   try {
     const { productId, quantity } = req.body;
     const { userId } = req.params;
-    console.log(userId, productId);
 
     if (
       !mongoose.Types.ObjectId.isValid(userId) ||
@@ -102,5 +100,15 @@ export const removeFromCart = async (req, res) => {
   } catch (error) {
     console.error("Error removing item from cart:", error);
     res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+export const getAllCart = async (req, res) => {
+  try {
+    const carts = await Cart.find();
+    if (!carts) return res.status(201).json({ carts: {} });
+    return res.status(201).json({ carts });
+  } catch (error) {
+    return res.status(500).json({ message: "internal server error" });
   }
 };
