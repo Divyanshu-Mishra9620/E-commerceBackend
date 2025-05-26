@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
 import crypto from "crypto";
+import { serialize } from "cookie";
 import dotenv from "dotenv";
 const envFile =
   process.env.NODE_ENV === "production" ? ".env.production" : ".env.local";
@@ -89,6 +90,7 @@ export const googleSignIn = async (req, res) => {
 
 export const loginUser = async (req, res) => {
   const { email, password } = req.body;
+  console.log(email, password);
 
   if (!email || !password) {
     return res.status(400).json({ message: "Email and password are required" });
