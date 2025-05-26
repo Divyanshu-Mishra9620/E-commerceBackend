@@ -6,14 +6,12 @@ import mongoose from "mongoose";
 import dotenv from "dotenv";
 dotenv.config({ path: ".env.local" });
 
-// Initialize Razorpay with API credentials
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_API_KEY,
   key_secret: process.env.RAZORPAY_API_SECRET,
 });
 
 /**
- * Creates a new Razorpay order
  * @route POST /api/payment/create
  * @access Private
  */
@@ -22,7 +20,6 @@ export const createRazorpayOrder = async (req, res) => {
     const { orderId, amount } = req.body;
     const user = req.user;
 
-    // Validate MongoDB ObjectIds
     if (
       !mongoose.Types.ObjectId.isValid(orderId) ||
       !mongoose.Types.ObjectId.isValid(user._id)
@@ -33,24 +30,20 @@ export const createRazorpayOrder = async (req, res) => {
         .json({ success: false, message: "Invalid Order or User ID" });
     }
 
-    // Convert string IDs to MongoDB ObjectIds
     const orderObjectId = new mongoose.Types.ObjectId(orderId);
     const userObjectId = new mongoose.Types.ObjectId(user._id);
 
-    // Find the order and verify ownership
     const order = await Order.findOne({
       _id: orderObjectId,
       user: userObjectId,
     });
 
-    // Verify order exists and belongs to user
     if (!order) {
       return res
         .status(404)
         .json({ success: false, message: "Order not found or unauthorized" });
     }
 
-    // Verify amount matches order total
     if (amount !== order.totalPrice) {
       return res.status(400).json({
         success: false,
@@ -58,9 +51,8 @@ export const createRazorpayOrder = async (req, res) => {
       });
     }
 
-    // Create Razorpay order
     const razorpayOrder = await razorpay.orders.create({
-      amount: amount * 100, // Convert to smallest currency unit (paise)
+      amount: amount * 100,
       currency: "INR",
       receipt: `order_${orderId}`,
       notes: {
@@ -69,7 +61,6 @@ export const createRazorpayOrder = async (req, res) => {
       },
     });
 
-    // Create payment record in database
     const payment = await Payment.create({
       order: orderId,
       user: user._id,
@@ -79,7 +70,6 @@ export const createRazorpayOrder = async (req, res) => {
       status: "created",
     });
 
-    // Return success response
     res.status(200).json({
       success: true,
       order: razorpayOrder,
@@ -97,7 +87,6 @@ export const createRazorpayOrder = async (req, res) => {
 };
 
 /**
- * Verifies Razorpay payment signature and updates order status
  * @route POST /api/payment/verify
  * @access Private
  */
@@ -105,7 +94,6 @@ export const verifyPayment = async (req, res) => {
   try {
     const { razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
 
-    // Verify payment signature
     const generatedSignature = crypto
       .createHmac("sha256", process.env.RAZORPAY_API_SECRET)
       .update(`${razorpayOrderId}|${razorpayPaymentId}`)
@@ -118,10 +106,8 @@ export const verifyPayment = async (req, res) => {
       });
     }
 
-    // Fetch payment details from Razorpay
     const paymentDetails = await razorpay.payments.fetch(razorpayPaymentId);
 
-    // Update payment record in database
     const payment = await Payment.findOneAndUpdate(
       { razorpayOrderId },
       {
@@ -137,7 +123,6 @@ export const verifyPayment = async (req, res) => {
       { new: true }
     ).populate("order");
 
-    // Update order status
     await Order.findByIdAndUpdate(payment.order._id, {
       paymentStatus: "Paid",
       status: "Processing",
@@ -159,7 +144,6 @@ export const verifyPayment = async (req, res) => {
 };
 
 /**
- * Retrieves payment details
  * @route GET /api/payment/:paymentId
  * @access Private
  */
@@ -167,7 +151,6 @@ export const getPaymentDetails = async (req, res) => {
   try {
     const { paymentId } = req.params;
 
-    // Fetch payment details with related order and user information
     const payment = await Payment.findById(paymentId).populate("order user");
 
     if (!payment) {

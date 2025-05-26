@@ -69,7 +69,6 @@ export const createProduct = async (req, res) => {
       });
     }
 
-    // Create product with all required fields
     const product = new Product({
       ...productData,
       image: productData?.image_url || productData?.image || "",
@@ -78,7 +77,7 @@ export const createProduct = async (req, res) => {
       avgRating: 0,
       reviews: [],
       createdBy: productData.createdBy || "seller",
-      seller: productData.creator, // Map creator to seller field
+      seller: productData.creator,
     });
 
     const savedProduct = await product.save();
@@ -169,10 +168,8 @@ export const addReview = async (req, res) => {
     const { productId } = req.params;
     const { user, rating, comment } = req.body;
 
-    // Log incoming data for debugging
     console.log("Review Data:", { productId, user, rating, comment });
 
-    // Validate product ID
     if (!mongoose.Types.ObjectId.isValid(productId)) {
       return res.status(400).json({
         success: false,
@@ -180,7 +177,6 @@ export const addReview = async (req, res) => {
       });
     }
 
-    // Find product and explicitly select all fields
     const product = await Product.findById(productId);
     if (!product) {
       return res.status(404).json({
@@ -189,7 +185,6 @@ export const addReview = async (req, res) => {
       });
     }
 
-    // Create review data
     const reviewData = {
       user: user._id,
       name: user.name || "Anonymous",
@@ -198,7 +193,6 @@ export const addReview = async (req, res) => {
       createdAt: new Date(),
     };
 
-    // Update or add review while preserving existing fields
     const existingReviewIndex = product.reviews.findIndex(
       (rev) => rev.user?.toString() === user._id?.toString()
     );
@@ -209,14 +203,12 @@ export const addReview = async (req, res) => {
       product.reviews.push(reviewData);
     }
 
-    // Update average rating
     const totalRating = product.reviews.reduce(
       (acc, rev) => acc + Number(rev.rating),
       0
     );
     product.avgRating = (totalRating / product.reviews.length).toFixed(1);
 
-    // Save product using save() to trigger validation
     const updatedProduct = await Product.findByIdAndUpdate(
       productId,
       {
@@ -227,7 +219,7 @@ export const addReview = async (req, res) => {
       },
       {
         new: true,
-        runValidators: false, // Disable validation for update
+        runValidators: false,
       }
     );
 
@@ -273,18 +265,15 @@ export const editReview = async (req, res) => {
     const { productId, editingReviewId } = req.params;
     const { rating, comment, name } = req.body;
 
-    // Validate inputs
     if (!rating || rating < 1 || rating > 5) {
       return res.status(400).json({ message: "Invalid rating value" });
     }
 
-    // Find product but don't run validators
     const product = await Product.findById(productId);
     if (!product) {
       return res.status(404).json({ message: "Product not found" });
     }
 
-    // Find the review index
     const reviewIndex = product.reviews.findIndex(
       (rev) => rev.user?.toString() === editingReviewId
     );
@@ -293,22 +282,19 @@ export const editReview = async (req, res) => {
       return res.status(404).json({ message: "Review not found" });
     }
 
-    // Update the review
     product.reviews[reviewIndex] = {
       ...product.reviews[reviewIndex],
-      name: name || product.reviews[reviewIndex].name, // Preserve existing name if not provided
+      name: name || product.reviews[reviewIndex].name,
       user: editingReviewId,
       rating: Number(rating),
       comment: comment || "",
       updatedAt: new Date(),
     };
 
-    // Recalculate average rating
     const avgRating =
       product.reviews.reduce((acc, rev) => acc + Number(rev.rating), 0) /
       product.reviews.length;
 
-    // Update product using findByIdAndUpdate to avoid validation
     const updatedProduct = await Product.findByIdAndUpdate(
       productId,
       {
@@ -341,13 +327,11 @@ export const deleteReview = async (req, res) => {
   const { productId, reviewId } = req.params;
 
   try {
-    // First find the product to ensure it exists
     const product = await Product.findById(productId);
     if (!product) {
       return res.status(404).json({ message: "Product not found" });
     }
 
-    // Filter out the review and calculate new average rating
     const updatedReviews = product.reviews.filter(
       (item) => item.user?.toString() !== reviewId?.toString()
     );
@@ -360,7 +344,6 @@ export const deleteReview = async (req, res) => {
           ).toFixed(1)
         : 0;
 
-    // Update the product using findByIdAndUpdate to avoid validation
     const updatedProduct = await Product.findByIdAndUpdate(
       productId,
       {
@@ -371,7 +354,7 @@ export const deleteReview = async (req, res) => {
       },
       {
         new: true,
-        runValidators: false, // Disable validation since we're only updating reviews
+        runValidators: false,
       }
     );
 
