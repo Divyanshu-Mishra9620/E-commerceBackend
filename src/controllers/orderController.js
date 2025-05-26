@@ -7,18 +7,30 @@ export const getAllOrdersByUser = async (req, res) => {
   try {
     const { userId } = req.params;
 
-    if (!mongoose.Types.ObjectId.isValid(userId)) {
-      return res.status(400).json({ message: "Invalid user ID" });
+    if (!userId) {
+      return res.status(400).json({ message: "User ID is required" });
     }
 
-    const orders = await Order.find({ user: userId }).populate(
-      "products.product"
-    );
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ message: "Invalid user ID format" });
+    }
 
-    return res.status(200).json({ orders: orders || [] });
+    const orders = await Order.find({ user: userId })
+      .populate("products.product")
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      success: true,
+      count: orders.length,
+      orders: orders || [],
+    });
   } catch (error) {
     console.error("Error fetching orders:", error);
-    res.status(500).json({ message: "Internal Server Error" });
+    res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+      error: error.message,
+    });
   }
 };
 export const getAllOrders = async (req, res) => {
