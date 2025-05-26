@@ -12,6 +12,16 @@ const reviewSchema = new mongoose.Schema(
 
 const productSchema = new mongoose.Schema(
   {
+    creator: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    createdBy: {
+      type: String,
+      enum: ["admin", "seller"],
+      required: true,
+    },
     uniq_id: { type: String, required: true },
     crawl_timestamp: { type: String },
     product_url: { type: String },
@@ -29,9 +39,24 @@ const productSchema = new mongoose.Schema(
     product_specifications: { type: String },
     reviews: [reviewSchema],
     avgRating: { type: Number, default: 0 },
+
+    // stockStatus: {
+    //   available: { type: Number, default: 0 },
+    //   reserved: { type: Number, default: 0 },
+    //   sold: { type: Number, default: 0 },
+    // },
+    // isActive: { type: Boolean, default: true },
   },
   { timestamps: true }
 );
+
+productSchema.index({ seller: 1, isActive: 1 });
+productSchema.index({ creator: 1, creatorModel: 1 });
+productSchema.index({ "adminInfo.verificationStatus": 1 });
+
+productSchema.virtual("inStock").get(function () {
+  return this.stockStatus.available > 0;
+});
 
 const Product = mongoose.model("Product", productSchema);
 export default Product;

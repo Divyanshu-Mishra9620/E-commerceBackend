@@ -11,6 +11,7 @@ import {
   deleteReview,
   editReview,
   editProduct,
+  getSellerProducts,
 } from "../controllers/productController.js";
 
 const router = express.Router();
@@ -28,5 +29,8 @@ router.post("/:productId/reviews", addReview);
 router.get("/:productId/reviews", getProductReviews);
 router.delete("/:productId/reviews/:reviewId", deleteReview);
 router.put("/:productId/reviews/:editingReviewId", editReview);
+
+//sell products
+router.get("/seller/:id", getSellerProducts);
 
 export default router;

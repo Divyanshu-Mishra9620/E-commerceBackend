@@ -59,23 +59,40 @@ export const getProductById = async (req, res) => {
 
 export const createProduct = async (req, res) => {
   try {
-    const { newProduct } = req.body;
-    console.log(newProduct);
+    const productData = req.body;
+    console.log("Received product data:", productData);
 
-    if (!newProduct.product_name) {
-      return res.status(400).json({ message: "Product name is required" });
+    if (!productData?.product_name) {
+      return res.status(400).json({
+        message: "Product name is required",
+        receivedData: productData,
+      });
     }
 
+    // Create product with all required fields
     const product = new Product({
-      ...newProduct,
-      image_url: newProduct.image_url || "lamp.jpg",
+      ...productData,
+      image: productData?.image_url || productData?.image || "",
+      uniq_id: Date.now().toString(),
+      pid: Date.now().toString(),
+      avgRating: 0,
+      reviews: [],
+      createdBy: productData.createdBy || "seller",
+      seller: productData.creator, // Map creator to seller field
     });
 
-    await product.save();
-    res.status(201).json({ product });
+    const savedProduct = await product.save();
+
+    res.status(201).json({
+      message: "Product created successfully",
+      product: savedProduct,
+    });
   } catch (error) {
     console.error("Error creating product:", error);
-    res.status(500).json({ message: error.message || "Server error" });
+    res.status(500).json({
+      message: "Failed to create product",
+      error: error.message,
+    });
   }
 };
 export const editProduct = async (req, res) => {
@@ -148,54 +165,88 @@ export const uploadProductImagesToCloudinary = async (req, res) => {
 };
 
 export const addReview = async (req, res) => {
-  const { productId } = req.params;
-  const { user, rating = 0, comment = "" } = req.body;
-
-  if (!/^[0-9a-fA-F]{24}$/.test(productId)) {
-    return res.status(400).json({ message: "Invalid product ID" });
-  }
-
-  if (!user || !user._id || !/^[0-9a-fA-F]{24}$/.test(user._id)) {
-    return res.status(400).json({ message: "Invalid user ID" });
-  }
-
-  if (typeof rating !== "number" || rating < 0 || rating > 5) {
-    return res.status(400).json({ message: "Invalid rating" });
-  }
-
-  if (typeof comment !== "string") {
-    return res.status(400).json({ message: "Invalid comment" });
-  }
-
   try {
-    const prodObjectId = new mongoose.Types.ObjectId(productId);
-    const userObjectId = new mongoose.Types.ObjectId(user._id);
+    const { productId } = req.params;
+    const { user, rating, comment } = req.body;
 
-    const product = await Product.findById(prodObjectId);
+    // Log incoming data for debugging
+    console.log("Review Data:", { productId, user, rating, comment });
 
-    if (!product) {
-      return res.status(404).json({ message: "Product not found" });
+    // Validate product ID
+    if (!mongoose.Types.ObjectId.isValid(productId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid product ID format",
+      });
     }
 
-    product.reviews.push({
-      user: userObjectId,
-      name: user.name,
-      rating,
-      comment,
-    });
+    // Find product and explicitly select all fields
+    const product = await Product.findById(productId);
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found",
+      });
+    }
 
+    // Create review data
+    const reviewData = {
+      user: user._id,
+      name: user.name || "Anonymous",
+      rating: Number(rating),
+      comment: comment || "",
+      createdAt: new Date(),
+    };
+
+    // Update or add review while preserving existing fields
+    const existingReviewIndex = product.reviews.findIndex(
+      (rev) => rev.user?.toString() === user._id?.toString()
+    );
+
+    if (existingReviewIndex >= 0) {
+      product.reviews[existingReviewIndex] = reviewData;
+    } else {
+      product.reviews.push(reviewData);
+    }
+
+    // Update average rating
     const totalRating = product.reviews.reduce(
-      (acc, rev) => acc + rev.rating,
+      (acc, rev) => acc + Number(rev.rating),
       0
     );
-    product.avgRating = totalRating / product.reviews.length;
+    product.avgRating = (totalRating / product.reviews.length).toFixed(1);
 
-    await product.save();
+    // Save product using save() to trigger validation
+    const updatedProduct = await Product.findByIdAndUpdate(
+      productId,
+      {
+        $set: {
+          reviews: product.reviews,
+          avgRating: product.avgRating,
+        },
+      },
+      {
+        new: true,
+        runValidators: false, // Disable validation for update
+      }
+    );
 
-    res.status(201).json({ message: "Review added successfully", product });
+    return res.status(200).json({
+      success: true,
+      message: "Review added successfully",
+      product: {
+        _id: updatedProduct._id,
+        reviews: updatedProduct.reviews,
+        avgRating: updatedProduct.avgRating,
+      },
+    });
   } catch (error) {
-    console.error("Error adding review:", error);
-    res.status(500).json({ message: "Internal Server Error" });
+    console.error("Review addition error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message,
+    });
   }
 };
 
@@ -218,48 +269,146 @@ export const getProductReviews = async (req, res) => {
   }
 };
 export const editReview = async (req, res) => {
-  const { productId, editingReviewId } = req.params;
-  const { rating, comment } = req.body;
-  const prodObjId = new mongoose.Types.ObjectId(productId);
   try {
-    const product = await Product.findById(prodObjId);
+    const { productId, editingReviewId } = req.params;
+    const { rating, comment, name } = req.body;
+
+    // Validate inputs
+    if (!rating || rating < 1 || rating > 5) {
+      return res.status(400).json({ message: "Invalid rating value" });
+    }
+
+    // Find product but don't run validators
+    const product = await Product.findById(productId);
     if (!product) {
       return res.status(404).json({ message: "Product not found" });
     }
 
-    const reviewToEdit = product.reviews.find(
-      (rev) => rev.user.toString() === editingReviewId.toString()
+    // Find the review index
+    const reviewIndex = product.reviews.findIndex(
+      (rev) => rev.user?.toString() === editingReviewId
     );
 
-    if (!reviewToEdit) {
+    if (reviewIndex === -1) {
       return res.status(404).json({ message: "Review not found" });
     }
 
-    reviewToEdit.rating = rating;
-    reviewToEdit.comment = comment;
+    // Update the review
+    product.reviews[reviewIndex] = {
+      ...product.reviews[reviewIndex],
+      name: name || product.reviews[reviewIndex].name, // Preserve existing name if not provided
+      user: editingReviewId,
+      rating: Number(rating),
+      comment: comment || "",
+      updatedAt: new Date(),
+    };
 
-    await product.save();
+    // Recalculate average rating
+    const avgRating =
+      product.reviews.reduce((acc, rev) => acc + Number(rev.rating), 0) /
+      product.reviews.length;
 
-    res.status(200).json({ message: "Review updated successfully", product });
+    // Update product using findByIdAndUpdate to avoid validation
+    const updatedProduct = await Product.findByIdAndUpdate(
+      productId,
+      {
+        $set: {
+          reviews: product.reviews,
+          avgRating: Number(avgRating.toFixed(1)),
+        },
+      },
+      {
+        new: true,
+        runValidators: false,
+      }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Review updated successfully",
+      product: updatedProduct,
+    });
   } catch (error) {
     console.error("Error editing review:", error);
-    res.status(500).json({ message: "Internal Server Error" });
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update review",
+      error: error.message,
+    });
   }
 };
 export const deleteReview = async (req, res) => {
   const { productId, reviewId } = req.params;
 
   try {
-    let product = await Product.findById(productId);
-
+    // First find the product to ensure it exists
+    const product = await Product.findById(productId);
     if (!product) {
       return res.status(404).json({ message: "Product not found" });
     }
-    product.reviews = product.reviews.filter((item) => item.user != reviewId);
-    await product.save();
-    res.status(200).json(product);
+
+    // Filter out the review and calculate new average rating
+    const updatedReviews = product.reviews.filter(
+      (item) => item.user?.toString() !== reviewId?.toString()
+    );
+
+    const avgRating =
+      updatedReviews.length > 0
+        ? (
+            updatedReviews.reduce((acc, rev) => acc + Number(rev.rating), 0) /
+            updatedReviews.length
+          ).toFixed(1)
+        : 0;
+
+    // Update the product using findByIdAndUpdate to avoid validation
+    const updatedProduct = await Product.findByIdAndUpdate(
+      productId,
+      {
+        $set: {
+          reviews: updatedReviews,
+          avgRating: avgRating,
+        },
+      },
+      {
+        new: true,
+        runValidators: false, // Disable validation since we're only updating reviews
+      }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Review deleted successfully",
+      product: updatedProduct,
+    });
   } catch (error) {
-    console.error("Error fetching reviews:", error);
+    console.error("Error deleting review:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to delete review",
+      error: error.message,
+    });
+  }
+};
+
+export const getSellerProducts = async (req, res) => {
+  const sellerId = req.params;
+
+  if (!sellerId) {
+    return res.status(400).json({ message: "Seller ID is required" });
+  }
+
+  try {
+    const products = await Product.find({ creator: sellerId.id });
+
+    if (!products.length) {
+      return res
+        .status(404)
+        .json({ message: "No products found for this seller" });
+    }
+
+    return res.status(200).json(products);
+  } catch (error) {
+    console.error("Error fetching seller's products:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
 };

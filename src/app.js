@@ -17,35 +17,18 @@ dotenv.config({ path: envFile });
 
 const app = express();
 
-const allowedOrigins = [
-  "http://localhost:3000",
-  "https://e-commerce-frontend-murex-eta.vercel.app",
-];
-
 app.use(
   cors({
-    origin: (origin, callback) => {
-      console.log("Incoming origin:", origin);
-
-      if (!origin) {
-        callback(null, true);
-        return;
-      }
-
-      const normalizedOrigin = origin.replace(/\/+$/, "");
-      console.log("Normalized origin:", normalizedOrigin);
-
-      if (allowedOrigins.includes(normalizedOrigin)) {
-        console.log("Allowed origin:", normalizedOrigin);
-        callback(null, true);
-      } else {
-        console.log("Blocked origin:", normalizedOrigin);
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
-    methods: ["GET", "POST", "PUT", "DELETE"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    origin: process.env.FRONTEND_URL || "http://localhost:3000",
     credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-Requested-With",
+      "Accept",
+      "Origin",
+    ],
   })
 );
 
