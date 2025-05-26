@@ -113,16 +113,17 @@ export const loginUser = async (req, res) => {
     console.log("JWT_SECRET:", process.env.JWT_SECRET);
 
     const token = jwt.sign(
-      { id: user._id, role: user.role },
+      { id: user._id, role: user.role || "user" },
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
 
     const cookie = serialize("token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: process.env.NODE_ENV !== "development",
+      sameSite: "strict",
       path: "/",
-      maxAge: 60 * 60,
+      maxAge: 60 * 60 * 24 * 7,
     });
 
     res.status(200).json({
