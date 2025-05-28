@@ -54,7 +54,6 @@ export const removeWishlistProduct = async (req, res) => {
   try {
     const { userId } = req.params;
     const { product } = req.body;
-    console.log(product);
 
     const wishlist = await Wishlist.findOne({ user: userId });
 

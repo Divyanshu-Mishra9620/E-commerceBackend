@@ -60,7 +60,6 @@ export const getProductById = async (req, res) => {
 export const createProduct = async (req, res) => {
   try {
     const productData = req.body;
-    console.log("Received product data:", productData);
 
     if (!productData?.product_name) {
       return res.status(400).json({
@@ -117,7 +116,6 @@ export const editProduct = async (req, res) => {
 export const deleteProduct = async (req, res) => {
   try {
     const { id } = req.params;
-    console.log(id);
 
     let product = await Product.findById(id);
 
@@ -167,8 +165,6 @@ export const addReview = async (req, res) => {
   try {
     const { productId } = req.params;
     const { user, rating, comment } = req.body;
-
-    console.log("Review Data:", { productId, user, rating, comment });
 
     if (!mongoose.Types.ObjectId.isValid(productId)) {
       return res.status(400).json({

@@ -2,8 +2,10 @@ import Razorpay from "razorpay";
 import crypto from "crypto";
 import Order from "../models/Order.js";
 import Payment from "../models/Payment.js";
+import Subscription from "../models/Subscription.js";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
+import User from "../models/User.js";
 dotenv.config({ path: ".env.local" });
 
 const razorpay = new Razorpay({
@@ -86,10 +88,261 @@ export const createRazorpayOrder = async (req, res) => {
   }
 };
 
-/**
- * @route POST /api/payment/verify
- * @access Private
- */
+export const createSubscription = async (req, res) => {
+  try {
+    const { amount, duration, planId } = req.body;
+
+    const plan = getPlanDetails(planId);
+    if (!plan) {
+      return res.status(400).json({ message: "Invalid plan selected" });
+    }
+
+    const options = {
+      amount: amount,
+      currency: "INR",
+      receipt: `sub_${Date.now()}`,
+      payment_capture: 1,
+    };
+
+    const order = await razorpay.orders.create(options);
+
+    res.status(201).json({
+      id: order.id,
+      amount: order.amount,
+      currency: order.currency,
+    });
+  } catch (error) {
+    console.error("Create order error:", error);
+    res.status(500).json({ message: "Failed to create subscription order" });
+  }
+};
+
+export const verifySubscription = async (req, res) => {
+  try {
+    const requiredFields = [
+      "razorpay_payment_id",
+      "razorpay_order_id",
+      "razorpay_signature",
+      "planId",
+      "duration",
+      "user",
+    ];
+
+    for (const field of requiredFields) {
+      if (!req.body[field]) {
+        return res.status(400).json({
+          message: `Missing required field: ${field}`,
+        });
+      }
+    }
+
+    const {
+      razorpay_payment_id,
+      razorpay_order_id,
+      razorpay_signature,
+      planId,
+      duration,
+      user,
+    } = req.body;
+
+    const body = `${razorpay_order_id}|${razorpay_payment_id}`;
+    const generatedSignature = crypto
+      .createHmac("sha256", process.env.RAZORPAY_API_SECRET)
+      .update(body)
+      .digest("hex");
+
+    const isSignatureValid = crypto.timingSafeEqual(
+      Buffer.from(generatedSignature),
+      Buffer.from(razorpay_signature)
+    );
+
+    if (!isSignatureValid) {
+      console.error("Payment verification failed: Signature mismatch");
+      return res.status(400).json({
+        success: false,
+        message: "Invalid payment signature",
+      });
+    }
+
+    const plan = getPlanDetails(planId);
+    if (!plan) {
+      console.error(`Invalid plan ID: ${planId}`);
+      return res.status(400).json({
+        success: false,
+        message: "Invalid plan selected",
+      });
+    }
+
+    const startDate = new Date();
+    const endDate = new Date();
+    endDate.setMonth(endDate.getMonth() + parseInt(duration));
+
+    const subscription = new Subscription({
+      user: user._id,
+      startDate,
+      endDate,
+      planId,
+      planName: plan.name,
+      duration: parseInt(duration),
+      amount: plan.price,
+      razorpayOrderId: razorpay_order_id,
+      razorpayPaymentId: razorpay_payment_id,
+      razorpaySignature: razorpay_signature,
+      status: "active",
+    });
+
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      const savedSubscription = await subscription.save({ session });
+
+      const foundUser = await User.findById(user._id).session(session);
+      if (!foundUser) {
+        await session.abortTransaction();
+        return res.status(404).json({
+          success: false,
+          message: "User not found",
+        });
+      }
+
+      foundUser.role = foundUser.role === "user" ? "seller" : foundUser.role;
+      foundUser.subscription = savedSubscription._id;
+      foundUser.subscriptionExpiry = endDate;
+
+      await foundUser.save({ session });
+
+      const msUntilEnd = endDate - new Date();
+      if (msUntilEnd > 0) {
+        setTimeout(async () => {
+          const userSession = await mongoose.startSession();
+          userSession.startTransaction();
+
+          try {
+            const userToUpdate = await User.findById(user._id).session(
+              userSession
+            );
+            if (
+              userToUpdate &&
+              userToUpdate.subscription?.equals(savedSubscription._id)
+            ) {
+              userToUpdate.role = "user";
+              userToUpdate.subscription = null;
+              userToUpdate.subscriptionExpiry = null;
+              await userToUpdate.save({ session: userSession });
+              await userSession.commitTransaction();
+            } else {
+              await userSession.abortTransaction();
+            }
+          } catch (err) {
+            console.error("Error in subscription expiry handler:", err);
+            await userSession.abortTransaction();
+          } finally {
+            userSession.endSession();
+          }
+        }, msUntilEnd);
+      }
+
+      await session.commitTransaction();
+
+      res.status(201).json({
+        success: true,
+        message: "Subscription created successfully",
+        data: {
+          subscription: savedSubscription,
+          user: {
+            id: foundUser._id,
+            role: foundUser.role,
+            subscriptionExpiry: foundUser.subscriptionExpiry,
+          },
+        },
+      });
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
+  } catch (error) {
+    console.error("Subscription verification error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to verify subscription",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
+function getPlanDetails(planId) {
+  if (typeof planId !== "string") return null;
+
+  const plans = {
+    basic: {
+      id: "basic",
+      name: "Basic Plan",
+      price: 299,
+      maxListings: 1,
+    },
+    pro: {
+      id: "pro",
+      name: "Pro Plan",
+      price: 1499,
+      maxListings: 10,
+    },
+    premium: {
+      id: "premium",
+      name: "Premium Plan",
+      price: 2599,
+      maxListings: Infinity,
+    },
+  };
+
+  return plans[planId] || null;
+}
+
+export const getSubscriptionDetails = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message: "User ID is required",
+      });
+    }
+
+    const subscription = await Subscription.findOne({ user: id })
+      .populate("user", "name email role")
+      .lean();
+
+    if (!subscription) {
+      return res.status(404).json({
+        success: false,
+        message: "No active subscription found",
+      });
+    }
+
+    const now = new Date();
+    const endDate = new Date(subscription.endDate);
+    const isValid = endDate > now;
+
+    return res.status(200).json({
+      success: true,
+      subscription: {
+        ...subscription,
+        isValid,
+        daysRemaining: Math.ceil((endDate - now) / (1000 * 60 * 60 * 24)),
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching subscription details:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
 export const verifyPayment = async (req, res) => {
   try {
     const { razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;

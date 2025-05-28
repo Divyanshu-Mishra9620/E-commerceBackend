@@ -90,7 +90,6 @@ export const googleSignIn = async (req, res) => {
 
 export const loginUser = async (req, res) => {
   const { email, password } = req.body;
-  console.log(email, password);
 
   if (!email || !password) {
     return res.status(400).json({ message: "Email and password are required" });
@@ -106,13 +105,9 @@ export const loginUser = async (req, res) => {
 
     const isPasswordCorrect = await bcrypt.compare(password, user.password);
 
-    console.log(isPasswordCorrect);
-
     if (!isPasswordCorrect) {
       return res.status(400).json({ message: "Invalid credentials" });
     }
-
-    console.log("JWT_SECRET:", process.env.JWT_SECRET);
 
     const token = jwt.sign(
       { id: user._id, role: user.role || "user" },
