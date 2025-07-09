@@ -39,13 +39,6 @@ const productSchema = new mongoose.Schema(
     product_specifications: { type: String },
     reviews: [reviewSchema],
     avgRating: { type: Number, default: 0 },
-
-    // stockStatus: {
-    //   available: { type: Number, default: 0 },
-    //   reserved: { type: Number, default: 0 },
-    //   sold: { type: Number, default: 0 },
-    // },
-    // isActive: { type: Boolean, default: true },
   },
   { timestamps: true }
 );

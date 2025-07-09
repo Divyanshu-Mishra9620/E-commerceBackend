@@ -52,31 +52,27 @@ export const createOrder = async (req, res) => {
     }
 
     const { userId } = req.params;
-    const { products, shippingAddress, paymentMethod } = req.body;
+    const { products, shippingAddress, paymentMethod, user } = req.body;
 
     let totalPrice = 0;
     let productDetails = [];
 
     for (let item of products) {
-      const product = await Product.findById(item.product);
+      const product = await Product.findById(item?.product?._id);
+
       if (!product) {
         return res
           .status(404)
-          .json({ message: `Product not found: ${item.product}` });
+          .json({ message: `Product not found: ${item?.product}` });
       }
+      totalPrice += (+product.discounted_price || 799) * +item?.quantity;
+      productDetails.push({ product: item?.product, quantity: item?.quantity });
+      product.creator = userId;
+      product.createdBy = user.role || "user";
 
-      if (product.stock < item.quantity) {
-        return res.status(400).json({
-          message: `Insufficient stock for product: ${product.name}`,
-        });
-      }
-
-      totalPrice += (+product.discounted_price || 799) * +item.quantity;
-      productDetails.push({ product: item.product, quantity: item.quantity });
-
-      product.stock -= item.quantity;
       await product.save();
     }
+    console.log(productDetails, "Pdt details");
 
     const newOrder = new Order({
       user: userId,
@@ -87,6 +83,7 @@ export const createOrder = async (req, res) => {
       paymentStatus: "Unpaid",
       status: "Processing",
     });
+    console.log("new order", newOrder);
 
     await newOrder.save();
     return res
