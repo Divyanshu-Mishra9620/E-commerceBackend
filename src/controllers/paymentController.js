@@ -19,8 +19,7 @@ const razorpay = new Razorpay({
  */
 export const createRazorpayOrder = async (req, res) => {
   try {
-    const { orderId, amount } = req.body;
-    const user = req.user;
+    const { orderId, amount, user } = req.body;
 
     if (
       !mongoose.Types.ObjectId.isValid(orderId) ||

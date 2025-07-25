@@ -14,7 +14,7 @@ const router = express.Router();
 router.get("/:paymentId", getPaymentDetails);
 router.get("/payment/:id", getSubscriptionDetails);
 
-router.post("/create-order", protect, createRazorpayOrder);
+router.post("/create-order", createRazorpayOrder);
 router.post("/create-subscription", protect, createSubscription);
 router.post("/verify-subscription", verifySubscription);
 router.post("/verify", verifyPayment);
