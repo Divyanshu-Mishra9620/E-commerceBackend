@@ -6,6 +6,7 @@ import Subscription from "../models/Subscription.js";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
 import User from "../models/User.js";
+import { use } from "react";
 dotenv.config({ path: ".env.local" });
 
 const razorpay = new Razorpay({
@@ -13,10 +14,33 @@ const razorpay = new Razorpay({
   key_secret: process.env.RAZORPAY_API_SECRET,
 });
 
-/**
- * @route POST /api/payment/create
- * @access Private
- */
+function getPlanDetails(planId) {
+  if (typeof planId !== "string") return null;
+
+  const plans = {
+    basic: {
+      id: "basic",
+      name: "Basic Plan",
+      price: 299,
+      maxListings: 1,
+    },
+    pro: {
+      id: "pro",
+      name: "Pro Plan",
+      price: 1499,
+      maxListings: 10,
+    },
+    premium: {
+      id: "premium",
+      name: "Premium Plan",
+      price: 2599,
+      maxListings: Infinity,
+    },
+  };
+
+  return plans[planId] || null;
+}
+
 export const createRazorpayOrder = async (req, res) => {
   try {
     const { orderId, amount, user } = req.body;
@@ -109,22 +133,23 @@ export const createSubscription = async (req, res) => {
       id: order.id,
       amount: order.amount,
       currency: order.currency,
+      duration: duration,
+      planId: planId,
     });
   } catch (error) {
     console.error("Create order error:", error);
     res.status(500).json({ message: "Failed to create subscription order" });
   }
 };
-
 export const verifySubscription = async (req, res) => {
   try {
     const requiredFields = [
+      "user",
+      "planId",
+      "duration",
       "razorpay_payment_id",
       "razorpay_order_id",
       "razorpay_signature",
-      "planId",
-      "duration",
-      "user",
     ];
 
     for (const field of requiredFields) {
@@ -143,6 +168,8 @@ export const verifySubscription = async (req, res) => {
       duration,
       user,
     } = req.body;
+
+    const storedUser = await User.findOne({ email: user.email });
 
     const body = `${razorpay_order_id}|${razorpay_payment_id}`;
     const generatedSignature = crypto
@@ -177,7 +204,7 @@ export const verifySubscription = async (req, res) => {
     endDate.setMonth(endDate.getMonth() + parseInt(duration));
 
     const subscription = new Subscription({
-      user: user._id,
+      user: storedUser?._id,
       startDate,
       endDate,
       planId,
@@ -196,7 +223,7 @@ export const verifySubscription = async (req, res) => {
     try {
       const savedSubscription = await subscription.save({ session });
 
-      const foundUser = await User.findById(user._id).session(session);
+      const foundUser = await User.findById(storedUser?._id).session(session);
       if (!foundUser) {
         await session.abortTransaction();
         return res.status(404).json({
@@ -272,53 +299,16 @@ export const verifySubscription = async (req, res) => {
   }
 };
 
-function getPlanDetails(planId) {
-  if (typeof planId !== "string") return null;
-
-  const plans = {
-    basic: {
-      id: "basic",
-      name: "Basic Plan",
-      price: 299,
-      maxListings: 1,
-    },
-    pro: {
-      id: "pro",
-      name: "Pro Plan",
-      price: 1499,
-      maxListings: 10,
-    },
-    premium: {
-      id: "premium",
-      name: "Premium Plan",
-      price: 2599,
-      maxListings: Infinity,
-    },
-  };
-
-  return plans[planId] || null;
-}
-
 export const getSubscriptionDetails = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { userId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(userId))
+      return res.status(400).json({ message: "Invalid user ID" });
 
-    if (!id) {
-      return res.status(400).json({
-        success: false,
-        message: "User ID is required",
-      });
-    }
-
-    const subscription = await Subscription.findOne({ user: id })
-      .populate("user", "name email role")
-      .lean();
+    const subscription = await Subscription.findOne({ user: userId });
 
     if (!subscription) {
-      return res.status(404).json({
-        success: false,
-        message: "No active subscription found",
-      });
+      return res.status(404).json({ message: "No active subscription found" });
     }
 
     const now = new Date();
@@ -342,6 +332,7 @@ export const getSubscriptionDetails = async (req, res) => {
     });
   }
 };
+
 export const verifyPayment = async (req, res) => {
   try {
     const { razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
@@ -395,10 +386,6 @@ export const verifyPayment = async (req, res) => {
   }
 };
 
-/**
- * @route GET /api/payment/:paymentId
- * @access Private
- */
 export const getPaymentDetails = async (req, res) => {
   try {
     const { paymentId } = req.params;

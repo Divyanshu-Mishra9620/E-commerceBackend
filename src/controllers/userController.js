@@ -1,18 +1,68 @@
 import mongoose from "mongoose";
 import User from "../models/User.js";
 
+const generateToken = (id) => {
+  return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "30d" });
+};
+
+export const handleOAuthLogin = async (req, res) => {
+  try {
+    const { email, name, image, providerId } = req.body;
+
+    let user = await User.findOne({ email });
+
+    if (!user) {
+      user = await User.create({
+        email,
+        name,
+        profilePic: image,
+        providerId,
+      });
+    }
+
+    const token = generateToken(user._id);
+
+    res.status(200).json({
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+      token,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
 export const updateUser = async (req, res) => {
   const { userId } = req.params;
   const { street, city, state, country, postalCode } = req.body;
-  const objectuid = new mongoose.Types.ObjectId(userId);
+
+  if (!mongoose.Types.ObjectId.isValid(userId)) {
+    return res.status(400).json({ message: "Invalid user ID format" });
+  }
+
   try {
+    const updateFields = {};
+    if (street) updateFields["address.street"] = street;
+    if (city) updateFields["address.city"] = city;
+    if (state) updateFields["address.state"] = state;
+    if (country) updateFields["address.country"] = country;
+    if (postalCode) updateFields["address.postalCode"] = postalCode;
+
+    if (Object.keys(updateFields).length === 0) {
+      return res
+        .status(400)
+        .json({ message: "No address fields provided to update." });
+    }
+
     const user = await User.findByIdAndUpdate(
-      objectuid,
-      {
-        address: { street, city, state, country, postalCode },
-      },
+      userId,
+      { $set: updateFields },
       { new: true }
-    );
+    ).select("-password");
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
@@ -27,8 +77,13 @@ export const updateUser = async (req, res) => {
 
 export const getUserByID = async (req, res) => {
   const { id } = req.params;
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({ message: "Invalid user ID format" });
+  }
+
   try {
-    const user = await User.findById(id);
+    const user = await User.findById(id).select("-password").lean();
+
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -39,6 +94,49 @@ export const getUserByID = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
+export const deleteUser = async (req, res) => {
+  const { userId } = req.params;
+  if (!mongoose.Types.ObjectId.isValid(userId)) {
+    return res.status(400).json({ message: "Invalid user ID format" });
+  }
+
+  try {
+    const deletedUser = await User.findByIdAndDelete(userId);
+    if (!deletedUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    return res.status(200).json({ message: "User deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting the user", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const getAllUser = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    const usersPromise = User.find()
+      .select("-password")
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .skip(skip)
+      .lean();
+
+    const countPromise = User.countDocuments();
+
+    const [users, totalUsers] = await Promise.all([usersPromise, countPromise]);
+    const totalPages = Math.ceil(totalUsers / limit);
+
+    res.status(200).json({ users, totalPages, currentPage: page });
+  } catch (error) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export const getUser = async (req, res) => {
   const { email } = req.params;
   try {
@@ -53,39 +151,43 @@ export const getUser = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
-export const deleteUser = async (req, res) => {
-  const { userId } = req.params;
 
+export const getAllSellers = async (req, res) => {
   try {
-    const deletedUser = await User.findByIdAndDelete(userId);
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 15;
+    const search = req.query.search || "";
+    const sortBy = req.query.sort === "oldest" ? "createdAt" : "-createdAt";
+    const skip = (page - 1) * limit;
 
-    if (!deletedUser) {
-      return res.status(404).json({ message: "User not found" });
-    }
+    const query = {
+      role: { $in: ["seller", "admin"] },
+      $or: [
+        { name: { $regex: search, $options: "i" } },
+        { email: { $regex: search, $options: "i" } },
+      ],
+    };
 
-    return res
-      .status(200)
-      .json({ message: "User deleted successfully", deletedUser });
+    const [sellers, totalSellers] = await Promise.all([
+      User.find(query)
+        .select("-password")
+        .sort(sortBy)
+        .limit(limit)
+        .skip(skip)
+        .lean(),
+      User.countDocuments(query),
+    ]);
+
+    const totalPages = Math.ceil(totalSellers / limit);
+
+    res.status(200).json({
+      sellers,
+      totalPages,
+      currentPage: page,
+      totalSellers,
+    });
   } catch (error) {
-    console.error("Error deleting the user", error);
-    return res.status(500).json({ message: "Internal server error" });
-  }
-};
-
-export const getAllUser = async (req, res) => {
-  try {
-    const users = await User.find();
-    return res.status(200).json({ users });
-  } catch (error) {
-    res.status(500).json({ message: "Internal server error" });
-  }
-};
-
-export const getAllUserByRole = async (req, res) => {
-  try {
-    const sellers = await User.find({ role: "seller" });
-    return res.status(200).json({ sellers });
-  } catch (error) {
+    console.error("Error fetching sellers:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };

@@ -5,32 +5,25 @@ import {
   getProductById,
   createProduct,
   deleteProduct,
-  uploadProductImagesToCloudinary,
-  addReview,
-  getProductReviews,
-  deleteReview,
-  editReview,
   editProduct,
   getSellerProducts,
+  getAllSellerProducts,
+  getHomepageCollections,
 } from "../controllers/productController.js";
 
 const router = express.Router();
 
-router.get("/", getAllProducts);
+router.get("/homepage-sections", getHomepageCollections);
 router.get("/search", getProductByTitle);
+
+router.get("/sellers", getAllSellerProducts);
+
+router.get("/seller/:id", getSellerProducts);
+router.get("/", getAllProducts);
 router.get("/:id", getProductById);
+
 router.post("/", createProduct);
 router.put("/:id", editProduct);
 router.delete("/:id", deleteProduct);
-router.get("/upload-images", uploadProductImagesToCloudinary);
-
-//reviews
-router.post("/:productId/reviews", addReview);
-router.get("/:productId/reviews", getProductReviews);
-router.delete("/:productId/reviews/:reviewId", deleteReview);
-router.put("/:productId/reviews/:editingReviewId", editReview);
-
-//sell products
-router.get("/seller/:id", getSellerProducts);
 
 export default router;

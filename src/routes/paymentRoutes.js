@@ -7,16 +7,15 @@ import {
   createSubscription,
   getSubscriptionDetails,
 } from "../controllers/paymentController.js";
-import { protect } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-router.get("/:paymentId", getPaymentDetails);
-router.get("/payment/:id", getSubscriptionDetails);
-
 router.post("/create-order", createRazorpayOrder);
-router.post("/create-subscription", protect, createSubscription);
+router.post("/create-subscription", createSubscription);
 router.post("/verify-subscription", verifySubscription);
 router.post("/verify", verifyPayment);
+
+router.get("/payment/:userId", getSubscriptionDetails);
+router.get("/:paymentId", getPaymentDetails);
 
 export default router;

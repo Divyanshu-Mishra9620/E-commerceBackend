@@ -98,47 +98,61 @@ export const loginUser = async (req, res) => {
   try {
     const user = await User.findOne({ email }).select("+password");
     if (!user) {
-      return res
-        .status(400)
-        .json({ message: "User not found, register instead" });
+      return res.status(400).json({ message: "Invalid credentials" });
     }
 
     const isPasswordCorrect = await bcrypt.compare(password, user.password);
-
     if (!isPasswordCorrect) {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
-    const token = jwt.sign(
+    const accessToken = jwt.sign(
       { id: user._id, role: user.role || "user" },
       process.env.JWT_SECRET,
+      { expiresIn: "15m" }
+    );
+
+    const refreshToken = jwt.sign(
+      { id: user._id },
+      process.env.JWT_REFRESH_SECRET,
       { expiresIn: "7d" }
     );
 
-    const cookie = serialize("token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV !== "development",
-      sameSite: "strict",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 7,
-    });
+    res.setHeader("Set-Cookie", [
+      serialize("accessToken", accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+        path: "/",
+        maxAge: 15 * 60,
+      }),
+      serialize("refreshToken", refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+        path: "/",
+        maxAge: 7 * 24 * 60 * 60,
+      }),
+    ]);
 
-    res.status(200).json({
-      message: "Login successful",
-      token,
+    return res.status(200).json({
+      success: true,
       user: {
         _id: user._id,
         name: user.name,
         email: user.email,
         profilePic: user.profilePic || "",
-        role: user.role,
-        status: 200,
-        headers: { "Set-Cookie": cookie },
+        role: user.role || "user",
       },
+      accessToken,
+      expiresIn: 15 * 60,
     });
   } catch (error) {
-    console.error("Error in loginUser:", error.message);
-    res.status(500).json({ message: "Internal Server Error" });
+    console.error("Login error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
   }
 };
 
@@ -221,5 +235,55 @@ export const resetPassword = async (req, res) => {
   } catch (error) {
     console.error("Error in resetPassword:", error);
     res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+export const refreshToken = async (req, res) => {
+  const { refreshToken } = req.cookies;
+
+  if (!refreshToken) {
+    return res.status(401).json({ message: "No refresh token provided" });
+  }
+
+  try {
+    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+
+    const user = await User.findById(decoded.id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const newAccessToken = jwt.sign(
+      { id: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: "15m" }
+    );
+
+    res.setHeader(
+      "Set-Cookie",
+      serialize("accessToken", newAccessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+        path: "/",
+        maxAge: 15 * 60,
+      })
+    );
+
+    return res.status(200).json({
+      success: true,
+      accessToken: newAccessToken,
+      expiresIn: 15 * 60,
+    });
+  } catch (error) {
+    console.error("Refresh token error:", error);
+    res.setHeader("Set-Cookie", [
+      serialize("accessToken", "", { maxAge: -1, path: "/" }),
+      serialize("refreshToken", "", { maxAge: -1, path: "/" }),
+    ]);
+    return res.status(401).json({
+      success: false,
+      message: "Invalid or expired refresh token",
+    });
   }
 };

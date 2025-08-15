@@ -5,8 +5,8 @@ const reviewSchema = new mongoose.Schema(
     name: { type: String, required: true },
     rating: { type: Number, min: 1, max: 5 },
     comment: { type: String },
-    createdAt: { type: Date, default: Date.now },
   },
+  { timestamps: true },
   { _id: false }
 );
 
@@ -42,7 +42,11 @@ const productSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
-
+productSchema.index({
+  product_name: "text",
+  description: "text",
+  category: "text",
+});
 productSchema.index({ seller: 1, isActive: 1 });
 productSchema.index({ creator: 1, creatorModel: 1 });
 productSchema.index({ "adminInfo.verificationStatus": 1 });
