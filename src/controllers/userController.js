@@ -76,22 +76,37 @@ export const updateUser = async (req, res) => {
 };
 
 export const getUserByID = async (req, res) => {
-  const { id } = req.params;
-  if (!mongoose.Types.ObjectId.isValid(id)) {
-    return res.status(400).json({ message: "Invalid user ID format" });
+  const { userId } = req.params;
+  console.log(`Searching for user ID: ${userId}`);
+
+  if (!mongoose.Types.ObjectId.isValid(userId)) {
+    return res.status(400).json({
+      error: "Invalid ID format",
+      receivedId: userId,
+      isValid: mongoose.Types.ObjectId.isValid(userId),
+    });
   }
 
   try {
-    const user = await User.findById(id).select("-password").lean();
+    const objectId = new mongoose.Types.ObjectId(userId);
+
+    const user = await User.findById(objectId).select("-password -__v").lean();
 
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({
+        error: "User not found",
+        query: { _id: objectId },
+        databaseCheck: await User.exists({ _id: objectId }),
+      });
     }
 
-    return res.status(200).json(user);
+    return res.json(user);
   } catch (error) {
-    console.error("Error getting the user", error);
-    res.status(500).json({ message: "Internal server error" });
+    console.error("Database error:", error);
+    return res.status(500).json({
+      error: "Server error",
+      details: process.env.NODE_ENV === "development" ? error.message : null,
+    });
   }
 };
 

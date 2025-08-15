@@ -11,12 +11,12 @@ import {
 
 const router = express.Router();
 
-router.get("/profile", getAllOrdersByUser);
+router.get("/profile/:userId", getAllOrdersByUser);
 router.post("/oauth", handleOAuthLogin);
-router.put("/:userId", updateUser);
 router.delete("/delete/:userId", deleteUser);
 router.get("/email/:email", getUser);
-router.get("/:id", getUserByID);
+router.put("/:userId", updateUser);
+router.get("/:userId", getUserByID);
 router.get("/", getAllUser);
 
 export default router;
