@@ -77,7 +77,6 @@ export const updateUser = async (req, res) => {
 
 export const getUserByID = async (req, res) => {
   const { userId } = req.params;
-  console.log(`Searching for user ID: ${userId}`);
 
   if (!mongoose.Types.ObjectId.isValid(userId)) {
     return res.status(400).json({
