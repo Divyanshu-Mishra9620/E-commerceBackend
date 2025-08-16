@@ -257,3 +257,37 @@ export const getAllSellerProducts = async (req, res) => {
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
+
+export const getProductBySlug = async (req, res) => {
+  try {
+    const product = await Product.findOne({ uniq_id: req.params.slug }).lean();
+    if (!product) return res.status(404).json({ message: "Product not found" });
+    res.status(200).json(product);
+  } catch (error) {
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+export const getSimilarProducts = async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.productId).lean();
+    if (!product) return res.status(200).json([]);
+
+    const similarProducts = await Product.find(
+      {
+        $text: { $search: product.product_name },
+        _id: { $ne: product._id },
+      },
+      {
+        score: { $meta: "textScore" },
+      }
+    )
+      .sort({ score: { $meta: "textScore" } })
+      .limit(20)
+      .lean();
+
+    res.status(200).json(similarProducts);
+  } catch (error) {
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};

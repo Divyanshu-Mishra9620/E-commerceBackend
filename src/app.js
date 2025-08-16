@@ -12,6 +12,7 @@ import userRoutes from "./routes/userRoutes.js";
 import sellerRoutes from "./routes/sellerRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
 import reviewRoutes from "./routes/reviewRoutes.js";
+import optimizedProductRoutes from "./routes/optimizedProductRoutes.js";
 
 const envFile =
   process.env.NODE_ENV === "production" ? ".env.production" : ".env.local";
@@ -61,6 +62,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/sellers", sellerRoutes);
 app.use("/api/wishlist", wishlistRoutes);
 app.use("/api/reviews", reviewRoutes);
+app.use("/api/optimized-products", optimizedProductRoutes);
 
 app.get("/api/health", (req, res) => {
   res.status(200).json({ status: "OK" });
