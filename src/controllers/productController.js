@@ -86,10 +86,10 @@ export const getProductByTitle = async (req, res) => {
       .limit(100);
 
     if (!products.length) {
-      return res.status(404).json({ message: "No products found" });
+      return res.status(200).json([]);
     }
 
-    res.status(200).json(products);
+    res.status(404).json(products);
   } catch (error) {
     console.error("Error searching products:", error);
     res.status(500).json({ message: "Internal Server Error" });
