@@ -2,6 +2,8 @@ import mongoose from "mongoose";
 import Order from "../models/Order.js";
 import Product from "../models/Product.js";
 
+import { Client } from "@googlemaps/google-maps-services-js";
+
 export const getAllOrdersByUser = async (req, res) => {
   try {
     const { userId } = req.params;
@@ -187,5 +189,55 @@ export const cancelOrder = async (req, res) => {
   } catch (error) {
     console.error("Error cancelling order:", error);
     res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+export const getOrderByOrderId = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      return res.status(400).json({ message: "Invalid order ID format" });
+    }
+    const order = await Order.findById(orderId).populate(
+      "products.product",
+      "product_name image discounted_price uniq_id"
+    );
+    if (!order) return res.status(404).json({ message: "Order not found" }, []);
+
+    return res.status(200).json(order);
+  } catch (error) {
+    console.error("Error fetching order:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+const googleMapsClient = new Client({});
+
+export const getOrderCoordinates = async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.orderId).lean();
+    if (!order || !order.shippingAddress) {
+      return res.status(404).json({ message: "Address not found" });
+    }
+
+    const { street, city, state, postalCode, country } = order.shippingAddress;
+    const addressString = `${street}, ${city}, ${state} ${postalCode}, ${country}`;
+
+    const response = await googleMapsClient.geocode({
+      params: {
+        address: addressString,
+        key: process.env.GOOGLE_MAPS_API_KEY,
+      },
+    });
+
+    if (response.data.results.length > 0) {
+      res.status(200).json(response.data.results[0].geometry.location);
+    } else {
+      throw new Error("Could not geocode address.");
+    }
+  } catch (error) {
+    console.error("Geocoding error:", error);
+    res.status(500).json({ message: "Failed to get coordinates" });
   }
 };
