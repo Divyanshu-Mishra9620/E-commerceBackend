@@ -67,7 +67,7 @@ export const googleSignIn = async (req, res) => {
       await user.save();
     }
 
-    const token = jwt.sign(
+    const accessToken = jwt.sign(
       { id: user._id, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
@@ -75,7 +75,7 @@ export const googleSignIn = async (req, res) => {
 
     res.status(200).json({
       message: "Google Sign-In successful",
-      token,
+      accessToken,
       user: {
         _id: user._id,
         name: user.name,
