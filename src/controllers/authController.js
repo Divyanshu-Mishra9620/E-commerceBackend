@@ -11,10 +11,10 @@ dotenv.config({ path: envFile });
 const FRONTEND_URI = process.env.FRONTEND_URI;
 
 export const registerUser = async (req, res) => {
-  const { name, email, password, role } = req.body;
+  const { name, email, password } = req.body;
 
   try {
-    if (!name || !email || !password || !role) {
+    if (!name || !email || !password) {
       return res.status(400).json({ message: "All fields are required" });
     }
     if (password.length < 6) {
@@ -25,14 +25,16 @@ export const registerUser = async (req, res) => {
 
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      return res.status(400).json({ message: "Email already exists" });
+      return res
+        .status(400)
+        .json({ message: "Email already exists. Please Sign in instead." });
     }
 
     const newUser = new User({
       name,
       email,
       password,
-      role,
+      role: "user",
     });
 
     await newUser.save();
@@ -90,6 +92,7 @@ export const googleSignIn = async (req, res) => {
 
 export const loginUser = async (req, res) => {
   const { email, password } = req.body;
+  console.log(email, password);
 
   if (!email || !password) {
     return res.status(400).json({ message: "Email and password are required" });
@@ -101,10 +104,14 @@ export const loginUser = async (req, res) => {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
+    console.log(password, user.password);
+
     const isPasswordCorrect = await bcrypt.compare(password, user.password);
     if (!isPasswordCorrect) {
       return res.status(400).json({ message: "Invalid credentials" });
     }
+
+    console.log(user);
 
     const accessToken = jwt.sign(
       { id: user._id, role: user.role || "user" },
