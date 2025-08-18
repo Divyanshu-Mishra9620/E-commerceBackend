@@ -104,14 +104,16 @@ export const loginUser = async (req, res) => {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
-    console.log(password, user.password);
+    if (user?.password) {
+      console.log(password, user.password);
 
-    const isPasswordCorrect = await bcrypt.compare(password, user.password);
-    if (!isPasswordCorrect) {
-      return res.status(400).json({ message: "Invalid credentials" });
+      const isPasswordCorrect = await bcrypt.compare(password, user.password);
+      if (!isPasswordCorrect) {
+        return res.status(400).json({ message: "Invalid credentials" });
+      }
+
+      console.log(user);
     }
-
-    console.log(user);
 
     const accessToken = jwt.sign(
       { id: user._id, role: user.role || "user" },
