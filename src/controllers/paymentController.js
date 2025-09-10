@@ -6,7 +6,6 @@ import Subscription from "../models/Subscription.js";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
 import User from "../models/User.js";
-import { use } from "react";
 dotenv.config({ path: ".env.local" });
 
 const razorpay = new Razorpay({
@@ -141,161 +140,112 @@ export const createSubscription = async (req, res) => {
     res.status(500).json({ message: "Failed to create subscription order" });
   }
 };
+
+function verifyRazorpaySignature(orderId, paymentId, signature) {
+  const body = `${orderId}|${paymentId}`;
+  const expectedSignature = crypto
+    .createHmac("sha256", process.env.RAZORPAY_API_SECRET)
+    .update(body)
+    .digest("hex");
+  return crypto.timingSafeEqual(
+    Buffer.from(expectedSignature),
+    Buffer.from(signature)
+  );
+}
+
 export const verifySubscription = async (req, res) => {
-  try {
-    const requiredFields = [
-      "user",
-      "planId",
-      "duration",
-      "razorpay_payment_id",
-      "razorpay_order_id",
-      "razorpay_signature",
-    ];
+  const userId = req.user._id;
 
-    for (const field of requiredFields) {
-      if (!req.body[field]) {
-        return res.status(400).json({
-          message: `Missing required field: ${field}`,
-        });
-      }
-    }
+  const {
+    razorpay_payment_id,
+    razorpay_order_id,
+    razorpay_signature,
+    planId,
+    duration,
+  } = req.body;
 
-    const {
-      razorpay_payment_id,
+  if (
+    !razorpay_payment_id ||
+    !razorpay_order_id ||
+    !razorpay_signature ||
+    !planId
+  ) {
+    return res
+      .status(400)
+      .json({ message: "Missing required payment fields." });
+  }
+
+  if (
+    !verifyRazorpaySignature(
       razorpay_order_id,
-      razorpay_signature,
-      planId,
-      duration,
-      user,
-    } = req.body;
+      razorpay_payment_id,
+      razorpay_signature
+    )
+  ) {
+    return res.status(400).json({ message: "Invalid payment signature." });
+  }
 
-    const storedUser = await User.findOne({ email: user.email });
+  const plan = getPlanDetails(planId);
+  if (!plan) {
+    return res.status(400).json({ message: "Invalid plan selected." });
+  }
 
-    const body = `${razorpay_order_id}|${razorpay_payment_id}`;
-    const generatedSignature = crypto
-      .createHmac("sha256", process.env.RAZORPAY_API_SECRET)
-      .update(body)
-      .digest("hex");
+  const session = await mongoose.startSession();
+  session.startTransaction();
 
-    const isSignatureValid = crypto.timingSafeEqual(
-      Buffer.from(generatedSignature),
-      Buffer.from(razorpay_signature)
-    );
-
-    if (!isSignatureValid) {
-      console.error("Payment verification failed: Signature mismatch");
-      return res.status(400).json({
-        success: false,
-        message: "Invalid payment signature",
-      });
-    }
-
-    const plan = getPlanDetails(planId);
-    if (!plan) {
-      console.error(`Invalid plan ID: ${planId}`);
-      return res.status(400).json({
-        success: false,
-        message: "Invalid plan selected",
-      });
-    }
-
+  try {
     const startDate = new Date();
     const endDate = new Date();
     endDate.setMonth(endDate.getMonth() + parseInt(duration));
 
     const subscription = new Subscription({
-      user: storedUser?._id,
+      user: userId,
       startDate,
       endDate,
       planId,
       planName: plan.name,
       duration: parseInt(duration),
-      amount: plan.price,
+      amount: plan.price * parseInt(duration),
       razorpayOrderId: razorpay_order_id,
       razorpayPaymentId: razorpay_payment_id,
       razorpaySignature: razorpay_signature,
-      status: "active",
     });
 
-    const session = await mongoose.startSession();
-    session.startTransaction();
+    await subscription.save({ session });
 
-    try {
-      const savedSubscription = await subscription.save({ session });
-
-      const foundUser = await User.findById(storedUser?._id).session(session);
-      if (!foundUser) {
-        await session.abortTransaction();
-        return res.status(404).json({
-          success: false,
-          message: "User not found",
-        });
-      }
-
-      foundUser.role = foundUser.role === "user" ? "seller" : foundUser.role;
-      foundUser.subscription = savedSubscription._id;
-      foundUser.subscriptionExpiry = endDate;
-
-      await foundUser.save({ session });
-
-      const msUntilEnd = endDate - new Date();
-      if (msUntilEnd > 0) {
-        setTimeout(async () => {
-          const userSession = await mongoose.startSession();
-          userSession.startTransaction();
-
-          try {
-            const userToUpdate = await User.findById(user._id).session(
-              userSession
-            );
-            if (
-              userToUpdate &&
-              userToUpdate.subscription?.equals(savedSubscription._id)
-            ) {
-              userToUpdate.role = "user";
-              userToUpdate.subscription = null;
-              userToUpdate.subscriptionExpiry = null;
-              await userToUpdate.save({ session: userSession });
-              await userSession.commitTransaction();
-            } else {
-              await userSession.abortTransaction();
-            }
-          } catch (err) {
-            console.error("Error in subscription expiry handler:", err);
-            await userSession.abortTransaction();
-          } finally {
-            userSession.endSession();
-          }
-        }, msUntilEnd);
-      }
-
-      await session.commitTransaction();
-
-      res.status(201).json({
-        success: true,
-        message: "Subscription created successfully",
-        data: {
-          subscription: savedSubscription,
-          user: {
-            id: foundUser._id,
-            role: foundUser.role,
-            subscriptionExpiry: foundUser.subscriptionExpiry,
-          },
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      {
+        $set: {
+          role: "seller",
+          subscription: subscription._id,
+          subscriptionExpiry: endDate,
         },
-      });
-    } catch (error) {
-      await session.abortTransaction();
-      throw error;
-    } finally {
-      session.endSession();
+      },
+      { new: true, session }
+    );
+
+    if (!updatedUser) {
+      throw new Error("User not found during update.");
     }
-  } catch (error) {
-    console.error("Subscription verification error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to verify subscription",
-      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+
+    await session.commitTransaction();
+
+    res.status(201).json({
+      success: true,
+      message: "Subscription created successfully",
+      user: {
+        id: updatedUser._id,
+        role: updatedUser.role,
+        subscriptionExpiry: updatedUser.subscriptionExpiry,
+      },
     });
+  } catch (error) {
+    await session.abortTransaction();
+    console.error("Subscription verification error:", error);
+    res.status(500).json({ message: "Failed to verify subscription" });
+  } finally {
+    session.endSession();
   }
 };
 

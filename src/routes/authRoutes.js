@@ -6,6 +6,7 @@ import {
   googleSignIn,
   forgotPassword,
   resetPassword,
+  refreshToken,
 } from "../controllers/authController.js";
 import { protect } from "../middleware/authMiddleware.js";
 import User from "../models/User.js";
@@ -19,6 +20,7 @@ router.post("/google", googleSignIn);
 router.get("/me", protect, checkAuth);
 router.post("/forgot-password", forgotPassword);
 router.post("/reset-password/:token", resetPassword);
+router.post("/refresh-token", refreshToken);
 router.post("/check-user", async (req, res) => {
   const { email, password } = req.body;
   try {

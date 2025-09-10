@@ -70,12 +70,18 @@ export const googleSignIn = async (req, res) => {
     const accessToken = jwt.sign(
       { id: user._id, role: user.role },
       process.env.JWT_SECRET,
-      { expiresIn: "7d" }
+      { expiresIn: "15m" }
+    );
+    const refreshToken = jwt.sign(
+      { id: user._id },
+      process.env.JWT_REFRESH_SECRET,
+      { expiresIn: "30d" }
     );
 
     res.status(200).json({
       message: "Google Sign-In successful",
       accessToken,
+      refreshToken,
       user: {
         _id: user._id,
         name: user.name,
@@ -92,7 +98,6 @@ export const googleSignIn = async (req, res) => {
 
 export const loginUser = async (req, res) => {
   const { email, password } = req.body;
-  console.log(email, password);
 
   if (!email || !password) {
     return res.status(400).json({ message: "Email and password are required" });
@@ -105,14 +110,10 @@ export const loginUser = async (req, res) => {
     }
 
     if (user?.password) {
-      console.log(password, user.password);
-
       const isPasswordCorrect = await bcrypt.compare(password, user.password);
       if (!isPasswordCorrect) {
         return res.status(400).json({ message: "Invalid credentials" });
       }
-
-      console.log(user);
     }
 
     const accessToken = jwt.sign(
@@ -124,25 +125,8 @@ export const loginUser = async (req, res) => {
     const refreshToken = jwt.sign(
       { id: user._id },
       process.env.JWT_REFRESH_SECRET,
-      { expiresIn: "7d" }
+      { expiresIn: "30d" }
     );
-
-    res.setHeader("Set-Cookie", [
-      serialize("accessToken", accessToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
-        path: "/",
-        maxAge: 15 * 60,
-      }),
-      serialize("refreshToken", refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
-        path: "/",
-        maxAge: 7 * 24 * 60 * 60,
-      }),
-    ]);
 
     return res.status(200).json({
       success: true,
@@ -150,10 +134,10 @@ export const loginUser = async (req, res) => {
         _id: user._id,
         name: user.name,
         email: user.email,
-        profilePic: user.profilePic || "",
-        role: user.role || "user",
+        role: user.role,
       },
       accessToken,
+      refreshToken,
       expiresIn: 15 * 60,
     });
   } catch (error) {
@@ -248,7 +232,7 @@ export const resetPassword = async (req, res) => {
 };
 
 export const refreshToken = async (req, res) => {
-  const { refreshToken } = req.cookies;
+  const refreshToken = req?.body;
 
   if (!refreshToken) {
     return res.status(401).json({ message: "No refresh token provided" });
@@ -257,7 +241,7 @@ export const refreshToken = async (req, res) => {
   try {
     const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
 
-    const user = await User.findById(decoded.id);
+    const user = await User.findById(decoded.id).select("-password").lean();
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -266,17 +250,6 @@ export const refreshToken = async (req, res) => {
       { id: user._id, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: "15m" }
-    );
-
-    res.setHeader(
-      "Set-Cookie",
-      serialize("accessToken", newAccessToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
-        path: "/",
-        maxAge: 15 * 60,
-      })
     );
 
     return res.status(200).json({

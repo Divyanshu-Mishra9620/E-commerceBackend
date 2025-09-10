@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import morgan from "morgan";
+import cookieParser from "cookie-parser";
 
 import productRoutes from "./routes/productRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
@@ -19,6 +20,7 @@ const envFile =
 dotenv.config({ path: envFile });
 
 const app = express();
+app.use(cookieParser());
 
 app.use(
   cors({
