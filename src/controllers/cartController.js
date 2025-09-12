@@ -65,7 +65,7 @@ export const updateCart = async (req, res) => {
 export const removeCartItem = async (req, res) => {
   try {
     const { userId } = req.params;
-    const { product: productId } = req.body;
+    const { productId } = req.body;
 
     if (
       !mongoose.Types.ObjectId.isValid(userId) ||

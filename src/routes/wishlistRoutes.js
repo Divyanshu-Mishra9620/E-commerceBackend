@@ -5,10 +5,12 @@ import {
   removeWishlistProduct,
 } from "../controllers/wishlistController.js";
 
+import { protect } from "../middleware/authMiddleware.js";
+
 const router = express.Router();
 
-router.get("/:userId", getAllWishlistProducts);
-router.post("/:userId", addWishlistProduct);
-router.delete("/:userId", removeWishlistProduct);
+router.get("/:userId", protect, getAllWishlistProducts);
+router.post("/:userId", protect, addWishlistProduct);
+router.delete("/:userId", protect, removeWishlistProduct);
 
 export default router;

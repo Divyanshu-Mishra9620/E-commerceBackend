@@ -232,7 +232,7 @@ export const resetPassword = async (req, res) => {
 };
 
 export const refreshToken = async (req, res) => {
-  const refreshToken = req?.body;
+  const { refreshToken } = req?.body;
 
   if (!refreshToken) {
     return res.status(401).json({ message: "No refresh token provided" });
