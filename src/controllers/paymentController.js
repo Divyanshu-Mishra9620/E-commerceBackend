@@ -251,7 +251,8 @@ export const verifySubscription = async (req, res) => {
 
 export const getSubscriptionDetails = async (req, res) => {
   try {
-    const { userId } = req.params;
+    const userId = req.user._id;
+
     if (!mongoose.Types.ObjectId.isValid(userId))
       return res.status(400).json({ message: "Invalid user ID" });
 
