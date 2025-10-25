@@ -115,9 +115,28 @@ export const updateOrderStatus = async (req, res) => {
   try {
     const { orderId } = req.params;
     const { status } = req.body;
-    const validStatuses = ["Processing", "Shipped", "Delivered", "Cancelled"];
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({ message: "Invalid status value." });
+
+    if (!status) {
+      return res.status(400).json({ message: "Status is required." });
+    }
+
+    const validStatuses = [
+      "Processing",
+      "Shipped",
+      "Delivered",
+      "Cancelled",
+      "Returned",
+    ];
+
+    const capitalizedStatus =
+      status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+
+    if (!validStatuses.includes(capitalizedStatus)) {
+      return res.status(400).json({
+        message: `Invalid status value. Valid statuses are: ${validStatuses.join(
+          ", "
+        )}`,
+      });
     }
 
     const order = await Order.findById(orderId);
@@ -125,29 +144,45 @@ export const updateOrderStatus = async (req, res) => {
       return res.status(404).json({ message: "Order not found" });
     }
 
-    if (status === "Cancelled" && order.status !== "Cancelled") {
+    // Handle cancellation - refund stock
+    if (capitalizedStatus === "Cancelled" && order.status !== "Cancelled") {
       const bulkStockUpdates = order.products.map((item) => ({
         updateOne: {
           filter: { _id: item.product },
           update: { $inc: { stock: item.quantity } },
         },
       }));
-      await Product.bulkWrite(bulkStockUpdates);
+      if (bulkStockUpdates.length > 0) {
+        await Product.bulkWrite(bulkStockUpdates);
+      }
+      order.cancelledAt = new Date();
     }
 
-    order.status = status;
+    // Update status
+    order.status = capitalizedStatus;
+
+    if (capitalizedStatus === "Delivered") {
+      order.deliveredAt = new Date();
+    }
+
     await order.save();
 
     res.status(200).json({ message: "Order status updated", order });
   } catch (error) {
     console.error("Error updating order status:", error);
-    res.status(500).json({ message: "Internal Server Error" });
+    res
+      .status(500)
+      .json({ message: "Internal Server Error", error: error.message });
   }
 };
 
 export const getAllOrders = async (req, res) => {
   try {
-    const orders = await Order.find();
+    const orders = await Order.find()
+      .populate("user", "name email phone")
+      .populate("products.product", "name price discounted_price")
+      .sort({ createdAt: -1 })
+      .lean();
 
     return res.status(200).json({ orders: orders || [] });
   } catch (error) {

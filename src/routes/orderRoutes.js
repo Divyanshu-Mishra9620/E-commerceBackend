@@ -8,15 +8,17 @@ import {
   getOrderCoordinates,
   getOrderByOrderId,
 } from "../controllers/orderController.js";
+import { protect } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
 router.get("/order/:orderId", getOrderByOrderId);
 router.get("/:orderId/geocode", getOrderCoordinates);
-router.get("/:userId", getAllOrdersByUser);
-router.get("/", getAllOrders);
-router.delete("/:userId", cancelOrder);
-router.post("/:userId", createOrder);
-router.put("/status/:orderId", updateOrderStatus);
+
+router.put("/:orderId", protect, updateOrderStatus);
+router.get("/", protect, getAllOrders);
+router.get("/:userId", protect, getAllOrdersByUser);
+router.post("/:userId", protect, createOrder);
+router.delete("/:userId", protect, cancelOrder);
 
 export default router;

@@ -28,7 +28,14 @@ const orderSchema = new mongoose.Schema(
     },
     paymentMethod: {
       type: String,
-      enum: ["Credit Card", "Debit Card", "UPI", "Cash on Delivery", "Wallet"],
+      enum: [
+        "Credit Card",
+        "Debit Card",
+        "UPI",
+        "Cash on Delivery",
+        "Wallet",
+        "Razorpay",
+      ],
       default: "Cash on Delivery",
     },
     transactionId: { type: String },

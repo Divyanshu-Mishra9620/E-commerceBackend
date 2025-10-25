@@ -67,11 +67,28 @@ export const removeCartItem = async (req, res) => {
     const { userId } = req.params;
     const { productId } = req.body;
 
-    if (
-      !mongoose.Types.ObjectId.isValid(userId) ||
-      !mongoose.Types.ObjectId.isValid(productId)
-    ) {
-      return res.status(400).json({ message: "Invalid ID provided" });
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ message: "Invalid user ID" });
+    }
+
+    if (!productId) {
+      const clearedCart = await Cart.findOneAndUpdate(
+        { user: userId },
+        { items: [] },
+        { new: true }
+      ).populate("items.product");
+
+      if (!clearedCart) {
+        return res.status(200).json({ items: [] });
+      }
+
+      return res
+        .status(200)
+        .json({ message: "Cart cleared", cart: clearedCart });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(productId)) {
+      return res.status(400).json({ message: "Invalid product ID" });
     }
 
     const updatedCart = await Cart.findOneAndUpdate(

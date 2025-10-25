@@ -23,6 +23,8 @@ const userSchema = new mongoose.Schema(
       minlength: [6, "Password must be at least 6 characters long"],
       select: false,
     },
+    fullName: { type: String, trim: true },
+    phoneNumber: { type: String },
     address: {
       street: { type: String },
       city: { type: String },
@@ -30,6 +32,18 @@ const userSchema = new mongoose.Schema(
       country: { type: String },
       postalCode: { type: String },
     },
+    addresses: [
+      {
+        fullName: { type: String },
+        street: { type: String },
+        city: { type: String },
+        state: { type: String },
+        postalCode: { type: String },
+        country: { type: String },
+        phoneNumber: { type: String },
+        isDefault: { type: Boolean, default: false },
+      },
+    ],
     profilePic: {
       type: String,
       default: "",
@@ -38,6 +52,12 @@ const userSchema = new mongoose.Schema(
     provider: { type: String, default: "local" },
     resetPasswordToken: { type: String },
     resetPasswordExpires: { type: Date },
+    notificationSettings: {
+      emailNotifications: { type: Boolean, default: true },
+      orderUpdates: { type: Boolean, default: true },
+      promotions: { type: Boolean, default: false },
+      productRecommendations: { type: Boolean, default: true },
+    },
   },
   { timestamps: true }
 );

@@ -7,12 +7,14 @@ import {
   deleteUser,
   getUserByID,
   handleOAuthLogin,
+  changePassword,
 } from "../controllers/userController.js";
 
 const router = express.Router();
 
 router.get("/profile/:userId", getAllOrdersByUser);
 router.post("/oauth", handleOAuthLogin);
+router.post("/change-password", changePassword);
 router.delete("/delete/:userId", deleteUser);
 router.get("/email/:email", getUser);
 router.put("/:userId", updateUser);

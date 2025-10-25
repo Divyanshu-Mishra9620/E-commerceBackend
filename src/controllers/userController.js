@@ -1,5 +1,7 @@
 import mongoose from "mongoose";
 import User from "../models/User.js";
+import jwt from "jsonwebtoken";
+import bcrypt from "bcryptjs";
 
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "15m" });
@@ -38,7 +40,13 @@ export const handleOAuthLogin = async (req, res) => {
 
 export const updateUser = async (req, res) => {
   const { userId } = req.params;
-  const { street, city, state, country, postalCode } = req.body;
+  const {
+    addresses,
+    notificationSettings,
+    fullName,
+    phoneNumber,
+    ...otherFields
+  } = req.body;
 
   if (!mongoose.Types.ObjectId.isValid(userId)) {
     return res.status(400).json({ message: "Invalid user ID format" });
@@ -46,16 +54,28 @@ export const updateUser = async (req, res) => {
 
   try {
     const updateFields = {};
-    if (street) updateFields["address.street"] = street;
-    if (city) updateFields["address.city"] = city;
-    if (state) updateFields["address.state"] = state;
-    if (country) updateFields["address.country"] = country;
-    if (postalCode) updateFields["address.postalCode"] = postalCode;
+
+    if (addresses) {
+      updateFields.addresses = addresses;
+    }
+
+    if (notificationSettings) {
+      updateFields.notificationSettings = notificationSettings;
+    }
+
+    if (fullName) updateFields.fullName = fullName;
+    if (phoneNumber) updateFields.phoneNumber = phoneNumber;
+
+    if (otherFields.street) updateFields["address.street"] = otherFields.street;
+    if (otherFields.city) updateFields["address.city"] = otherFields.city;
+    if (otherFields.state) updateFields["address.state"] = otherFields.state;
+    if (otherFields.country)
+      updateFields["address.country"] = otherFields.country;
+    if (otherFields.postalCode)
+      updateFields["address.postalCode"] = otherFields.postalCode;
 
     if (Object.keys(updateFields).length === 0) {
-      return res
-        .status(400)
-        .json({ message: "No address fields provided to update." });
+      return res.status(400).json({ message: "No fields provided to update." });
     }
 
     const user = await User.findByIdAndUpdate(
@@ -68,9 +88,55 @@ export const updateUser = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    res.status(200).json({ message: "Address updated successfully", user });
+    res.status(200).json({ message: "User updated successfully", user });
   } catch (error) {
-    console.error("Error updating address:", error);
+    console.error("Error updating user:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const changePassword = async (req, res) => {
+  const { currentPassword, newPassword, confirmPassword } = req.body;
+  const userId = req.user?._id || req.body.userId;
+
+  if (!userId) {
+    return res.status(400).json({ message: "User ID is required" });
+  }
+
+  if (!currentPassword || !newPassword || !confirmPassword) {
+    return res
+      .status(400)
+      .json({ message: "All password fields are required" });
+  }
+
+  if (newPassword !== confirmPassword) {
+    return res.status(400).json({ message: "New passwords do not match" });
+  }
+
+  if (newPassword.length < 6) {
+    return res
+      .status(400)
+      .json({ message: "Password must be at least 6 characters" });
+  }
+
+  try {
+    const user = await User.findById(userId).select("+password");
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const isPasswordValid = await user.comparePassword(currentPassword);
+    if (!isPasswordValid) {
+      return res.status(400).json({ message: "Current password is incorrect" });
+    }
+
+    user.password = newPassword;
+    await user.save();
+
+    res.status(200).json({ message: "Password changed successfully" });
+  } catch (error) {
+    console.error("Error changing password:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };

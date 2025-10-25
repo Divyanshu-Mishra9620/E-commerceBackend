@@ -16,6 +16,7 @@ export const addReview = async (req, res) => {
       name: user.name || "Anonymous",
       rating: Number(rating),
       comment: comment || "",
+      reply: null,
       createdAt: new Date(),
     };
 
@@ -172,6 +173,71 @@ export const getReviewsByUser = async (req, res) => {
     res.status(200).json(productsWithUserReviews);
   } catch (error) {
     console.error("Error fetching user reviews:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+export const getAllReviews = async (req, res) => {
+  try {
+    const reviews = [];
+
+    const products = await Product.find()
+      .select("_id name reviews")
+      .populate("reviews.user", "name email")
+      .lean();
+
+    products.forEach((product) => {
+      if (product.reviews && product.reviews.length > 0) {
+        product.reviews.forEach((review) => {
+          reviews.push({
+            _id: review._id,
+            productId: product._id,
+            productName: product.name,
+            ...review,
+          });
+        });
+      }
+    });
+
+    res
+      .status(200)
+      .json({
+        reviews: reviews.sort(
+          (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+        ),
+      });
+  } catch (error) {
+    console.error("Error fetching all reviews:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+export const addReviewReply = async (req, res) => {
+  try {
+    const { reviewId } = req.params;
+    const { reply } = req.body;
+
+    if (!reply || reply.trim() === "") {
+      return res.status(400).json({ message: "Reply text is required" });
+    }
+
+    const result = await Product.updateOne(
+      { "reviews._id": reviewId },
+      {
+        $set: {
+          "reviews.$.reply": reply,
+          "reviews.$.replyAt": new Date(),
+        },
+      }
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ message: "Review not found" });
+    }
+
+    res.status(200).json({ message: "Reply added successfully" });
+  } catch (error) {
+    console.error("Error adding reply:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
