@@ -320,6 +320,7 @@ export const verifyPayment = async (req, res) => {
     await Order.findByIdAndUpdate(payment.order._id, {
       paymentStatus: "Paid",
       status: "Processing",
+      transactionId: razorpayPaymentId,
     });
 
     res.status(200).json({
